@@ -9,18 +9,44 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  // Helper to persist administrative fields specifically as requested
+  const saveToKobaAdminData = (name: string, value: string) => {
+    const existing = localStorage.getItem('koba_admin_data');
+    const data = existing ? JSON.parse(existing) : {};
+    data[name] = value;
+    localStorage.setItem('koba_admin_data', JSON.stringify(data));
+  };
+
   // Persistence logic
   const loadSavedConfig = () => {
     const saved = localStorage.getItem('rk_config');
+    const adminSaved = localStorage.getItem('koba_admin_data');
+    
+    let configBase = INITIAL_CONFIG;
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return { ...INITIAL_CONFIG, ...parsed, branding: { ...INITIAL_CONFIG.branding, ...parsed.branding } };
-      } catch (e) {
-        return INITIAL_CONFIG;
-      }
+        configBase = { ...INITIAL_CONFIG, ...parsed, branding: { ...INITIAL_CONFIG.branding, ...parsed.branding } };
+      } catch (e) {}
     }
-    return INITIAL_CONFIG;
+
+    // Overwrite branding fields if koba_admin_data exists (STRICT REQUIREMENT)
+    if (adminSaved) {
+      try {
+        const adminData = JSON.parse(adminSaved);
+        configBase.branding = {
+          ...configBase.branding,
+          quoteTitle: adminData.quoteTitle || configBase.branding.quoteTitle,
+          companyName: adminData.companyName || configBase.branding.companyName,
+          subName: adminData.subName || configBase.branding.subName,
+          adminNames: adminData.adminNames || configBase.branding.adminNames,
+          adminRole: adminData.adminRole || configBase.branding.adminRole,
+        };
+      } catch (e) {}
+    }
+
+    return configBase;
   };
 
   const [config, setConfig] = useState<ProjectConfig>(loadSavedConfig());
@@ -33,15 +59,15 @@ export default function App() {
   });
   
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [formProduct, setFormProduct] = useState({
+    id: '',
     name: '',
     price: '',
-    yield: '34',
+    yield: '',
     brand: ''
   });
 
-  // Sync state to local storage
+  // Sync general config to local storage
   useEffect(() => {
     localStorage.setItem('rk_config', JSON.stringify(config));
   }, [config]);
@@ -52,7 +78,6 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Credenciales restauradas: admin / Renueva2024
     if (loginData.user.toLowerCase() === 'admin' && loginData.pass === 'Renueva2024') {
       setIsAdmin(true);
       setShowLogin(false);
@@ -67,10 +92,13 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
+        const result = reader.result as string;
         setConfig(prev => ({
           ...prev,
-          branding: { ...prev.branding, logoUrl: reader.result as string }
+          branding: { ...prev.branding, logoUrl: result }
         }));
+        // Optional: you could also persist the logo in koba_admin_data if needed, 
+        // but sticking strictly to the fields mentioned for the key "koba_admin_data"
       };
       reader.readAsDataURL(file);
     }
@@ -91,6 +119,47 @@ export default function App() {
   const filteredProducts = useMemo(() => {
     return allProducts.filter(p => p.category === config.selectedCategory);
   }, [config.selectedCategory, allProducts]);
+
+  const handleAddCustomProduct = () => {
+    if (!formProduct.name || !formProduct.price || !formProduct.yield || !formProduct.brand) {
+      alert("Por favor rellena todos los campos del producto");
+      return;
+    }
+
+    const newProduct: Product = {
+      id: formProduct.id || `custom-${Date.now()}`,
+      name: formProduct.name,
+      category: config.selectedCategory,
+      price: Number(formProduct.price),
+      yield: Number(formProduct.yield),
+      brand: formProduct.brand
+    };
+
+    setCustomProducts(prev => {
+      const exists = prev.findIndex(p => p.id === newProduct.id);
+      if (exists > -1) {
+        const updated = [...prev];
+        updated[exists] = newProduct;
+        return updated;
+      }
+      return [...prev, newProduct];
+    });
+
+    setConfig(prev => ({ ...prev, selectedProductId: newProduct.id, extraBuckets: 0 }));
+    setIsFormOpen(false);
+    setFormProduct({ id: '', name: '', price: '', yield: '', brand: '' });
+  };
+
+  const openProductEditor = () => {
+    setFormProduct({
+      id: currentProduct.id.startsWith('custom-') ? currentProduct.id : '',
+      name: currentProduct.name,
+      price: currentProduct.price.toString(),
+      yield: currentProduct.yield.toString(),
+      brand: currentProduct.brand
+    });
+    setIsFormOpen(true);
+  };
 
   const result: QuoteResult = useMemo(() => {
     const sealerMaterial = config.materials['Sellador'];
@@ -196,7 +265,6 @@ export default function App() {
   const utility = config.m2 * config.profitRate;
   const materialCost = result.subtotal - laborMetric - utility - (config.masonryRepairEnabled ? config.masonryRepairCost : 0);
 
-  // Rangos para los selectores
   const dailyScaffoldRates = Array.from({ length: 10 }, (_, i) => (i + 1) * 100);
   const laborDailyRates = [500, 600, 700, 800, 900, 1000, 1100, 1200];
 
@@ -205,7 +273,7 @@ export default function App() {
       {/* Login Overlay */}
       {showLogin && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-sm w-full border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex flex-col items-center mb-6">
               <div className="bg-[#005C69] p-3 rounded-2xl text-white mb-3 shadow-lg"><Lock className="w-6 h-6" /></div>
               <h3 className="text-xl font-black text-slate-800 tracking-tighter">ACCESO ADMINISTRADOR</h3>
@@ -296,8 +364,13 @@ export default function App() {
               <div className="bg-[#005C69] text-white px-2 py-1 rounded text-[8px] font-black uppercase inline-block">KOBA-OFFICIAL</div>
               {isAdmin ? (
                 <input 
+                  name="quoteTitle"
                   value={config.branding.quoteTitle} 
-                  onChange={e => setConfig(p => ({ ...p, branding: { ...p.branding, quoteTitle: e.target.value } }))}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setConfig(p => ({ ...p, branding: { ...p.branding, quoteTitle: val } }));
+                    saveToKobaAdminData('quoteTitle', val);
+                  }}
                   className="block text-3xl font-black text-slate-900 tracking-tighter uppercase border-b-2 border-[#005C69]/10 outline-none w-full"
                 />
               ) : (
@@ -310,7 +383,7 @@ export default function App() {
             </div>
             
             <div className="text-right flex flex-col items-end relative z-[250]">
-              <div className="relative group cursor-pointer no-print">
+              <div className="relative group cursor-pointer no-print hidden md:block">
                 <input 
                   type="file" 
                   id="quote-logo-upload" 
@@ -344,8 +417,26 @@ export default function App() {
 
               {isAdmin ? (
                 <>
-                  <input value={config.branding.companyName} onChange={e => setConfig(p => ({ ...p, branding: { ...p.branding, companyName: e.target.value } }))} className="text-3xl font-black text-[#005C69] text-right border-b border-[#005C69]/10 outline-none block w-64 ml-auto" />
-                  <input value={config.branding.subName} onChange={e => setConfig(p => ({ ...p, branding: { ...p.branding, subName: e.target.value } }))} className="text-[12px] font-black text-[#FF914D] tracking-widest uppercase italic text-right border-b border-[#FF914D]/10 outline-none block w-64 ml-auto mt-1" />
+                  <input 
+                    name="companyName"
+                    value={config.branding.companyName} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setConfig(p => ({ ...p, branding: { ...p.branding, companyName: val } }));
+                      saveToKobaAdminData('companyName', val);
+                    }} 
+                    className="text-3xl font-black text-[#005C69] text-right border-b border-[#005C69]/10 outline-none block w-64 ml-auto" 
+                  />
+                  <input 
+                    name="subName"
+                    value={config.branding.subName} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setConfig(p => ({ ...p, branding: { ...p.branding, subName: val } }));
+                      saveToKobaAdminData('subName', val);
+                    }} 
+                    className="text-[12px] font-black text-[#FF914D] tracking-widest uppercase italic text-right border-b border-[#FF914D]/10 outline-none block w-64 ml-auto mt-1" 
+                  />
                 </>
               ) : (
                 <>
@@ -441,12 +532,30 @@ export default function App() {
             <div className="text-center">
               <div className="h-px bg-slate-300 w-40 mb-3 mx-auto"></div>
               {isAdmin ? (
-                <input value={config.branding.adminNames} onChange={e => setConfig(p => ({ ...p, branding: { ...p.branding, adminNames: e.target.value } }))} className="text-[9px] font-black text-slate-900 uppercase text-center border-b border-[#005C69]/10 outline-none block mx-auto" />
+                <input 
+                  name="adminNames"
+                  value={config.branding.adminNames} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setConfig(p => ({ ...p, branding: { ...p.branding, adminNames: val } }));
+                    saveToKobaAdminData('adminNames', val);
+                  }} 
+                  className="text-[9px] font-black text-slate-900 uppercase text-center border-b border-[#005C69]/10 outline-none block mx-auto" 
+                />
               ) : (
                 <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest">{config.branding.adminNames}</p>
               )}
               {isAdmin ? (
-                <input value={config.branding.adminRole} onChange={e => setConfig(p => ({ ...p, branding: { ...p.branding, adminRole: e.target.value } }))} className="text-[7px] font-bold text-slate-400 uppercase text-center border-b border-[#005C69]/10 outline-none block mx-auto" />
+                <input 
+                  name="adminRole"
+                  value={config.branding.adminRole} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setConfig(p => ({ ...p, branding: { ...p.branding, adminRole: val } }));
+                    saveToKobaAdminData('adminRole', val);
+                  }} 
+                  className="text-[7px] font-bold text-slate-400 uppercase text-center border-b border-[#005C69]/10 outline-none block mx-auto" 
+                />
               ) : (
                 <p className="text-[7px] font-bold text-slate-400 uppercase">{config.branding.adminRole}</p>
               )}
@@ -458,7 +567,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Panel de Ajustes Rápidos */}
           <div className="no-print mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-8 bg-slate-50 rounded-3xl border border-slate-100 relative z-[100]">
             <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-between items-center mb-2">
               <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] flex items-center gap-2">
@@ -468,26 +576,115 @@ export default function App() {
             </div>
 
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-              <h2 className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-800 tracking-wider">Dimensiones</h2>
-              <div className="relative">
-                <input 
-                  type="number" 
-                  value={config.m2} 
-                  onChange={e => setConfig(p => ({ ...p, m2: Number(e.target.value), workDays: calculateWorkDays(Number(e.target.value)) }))}
-                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl focus:ring-2 focus:ring-[#005C69]/20 outline-none" 
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 font-black italic">M²</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(['Impermeabilizante', 'Pintura'] as MaterialCategory[]).map(cat => (
-                  <button 
-                    key={cat} 
-                    onClick={() => setConfig(p => ({ ...p, selectedCategory: cat, selectedProductId: allProducts.find(x => x.category === cat)?.id || p.selectedProductId, extraBuckets: 0, extraSealerBuckets: 0 }))}
-                    className={`py-2 rounded-xl border-2 font-black text-[10px] transition-all ${config.selectedCategory === cat ? 'bg-[#005C69] border-[#005C69] text-white shadow-md' : 'bg-white text-slate-400 border-slate-100 hover:border-[#005C69]/30'}`}
+              <h2 className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-800 tracking-wider">Configuración de Obra</h2>
+              <div className="space-y-3">
+                <div className="relative">
+                  <input 
+                    type="number" 
+                    value={config.m2} 
+                    onChange={e => setConfig(p => ({ ...p, m2: Number(e.target.value), workDays: calculateWorkDays(Number(e.target.value)) }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl focus:ring-2 focus:ring-[#005C69]/20 outline-none" 
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 font-black italic">M²</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Impermeabilizante', 'Pintura'] as MaterialCategory[]).map(cat => (
+                    <button 
+                      key={cat} 
+                      onClick={() => setConfig(p => {
+                        const firstProdInCat = allProducts.find(x => x.category === cat);
+                        return { 
+                          ...p, 
+                          selectedCategory: cat, 
+                          selectedProductId: firstProdInCat?.id || p.selectedProductId, 
+                          extraBuckets: 0, 
+                          extraSealerBuckets: 0 
+                        };
+                      })}
+                      className={`py-2 rounded-xl border-2 font-black text-[10px] transition-all ${config.selectedCategory === cat ? 'bg-[#005C69] border-[#005C69] text-white shadow-md' : 'bg-white text-slate-400 border-slate-100 hover:border-[#005C69]/30'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[8px] font-black text-slate-400 uppercase block">Producto Específico</label>
+                    <button 
+                      onClick={openProductEditor}
+                      className="text-[#005C69] hover:text-[#FF914D] transition-colors p-1"
+                      title="Personalizar producto"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <select 
+                    value={config.selectedProductId} 
+                    onChange={e => setConfig(p => ({ ...p, selectedProductId: e.target.value, extraBuckets: 0 }))}
+                    className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg font-bold text-xs outline-none focus:ring-1 focus:ring-[#005C69]/30"
                   >
-                    {cat}
-                  </button>
-                ))}
+                    {filteredProducts.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {isFormOpen ? (
+                  <div className="bg-slate-900 p-4 rounded-xl border border-white/10 space-y-3 animate-in fade-in zoom-in duration-200">
+                    <div className="flex justify-between items-center mb-1">
+                      <h4 className="text-[9px] font-black text-white uppercase tracking-widest">Datos del Material</h4>
+                      <button onClick={() => setIsFormOpen(false)} className="text-white/40 hover:text-white"><X className="w-3 h-3" /></button>
+                    </div>
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nombre del producto" 
+                        value={formProduct.name}
+                        onChange={e => setFormProduct(p => ({ ...p, name: e.target.value }))}
+                        className="w-full p-2 bg-white/5 border border-white/10 rounded-lg text-white text-[10px] font-bold outline-none focus:border-[#FF914D]"
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Marca" 
+                        value={formProduct.brand}
+                        onChange={e => setFormProduct(p => ({ ...p, brand: e.target.value }))}
+                        className="w-full p-2 bg-white/5 border border-white/10 rounded-lg text-white text-[10px] font-bold outline-none focus:border-[#FF914D]"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input 
+                          type="number" 
+                          placeholder="Precio ($)" 
+                          value={formProduct.price}
+                          onChange={e => setFormProduct(p => ({ ...p, price: e.target.value }))}
+                          className="w-full p-2 bg-white/5 border border-white/10 rounded-lg text-white text-[10px] font-bold outline-none focus:border-[#FF914D]"
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="Rendimiento m2" 
+                          value={formProduct.yield}
+                          onChange={e => setFormProduct(p => ({ ...p, yield: e.target.value }))}
+                          className="w-full p-2 bg-white/5 border border-white/10 rounded-lg text-white text-[10px] font-bold outline-none focus:border-[#FF914D]"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleAddCustomProduct}
+                        className="w-full py-2 bg-[#FF914D] text-white rounded-lg font-black text-[10px] uppercase hover:bg-[#e8803d] transition-colors"
+                      >
+                        Guardar Producto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#005C69]/5 p-2 rounded-lg border border-[#005C69]/10 space-y-1">
+                    <div className="flex justify-between items-center text-[9px] font-black text-[#005C69] uppercase">
+                      <span>Marca: {currentProduct.brand}</span>
+                      <span>${currentProduct.price.toLocaleString()} Unit.</span>
+                    </div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                      Rendimiento: {currentProduct.yield} m² por cubeta
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 
