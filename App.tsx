@@ -52,6 +52,7 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    // Credenciales restauradas: admin / Renueva2024
     if (loginData.user.toLowerCase() === 'admin' && loginData.pass === 'Renueva2024') {
       setIsAdmin(true);
       setShowLogin(false);
@@ -197,7 +198,6 @@ export default function App() {
 
   // Rangos para los selectores
   const dailyScaffoldRates = Array.from({ length: 10 }, (_, i) => (i + 1) * 100);
-  // Rango Pago Diario Mano de Obra: $500 a $1200 subiendo de 100 en 100
   const laborDailyRates = [500, 600, 700, 800, 900, 1000, 1100, 1200];
 
   return (
@@ -237,7 +237,7 @@ export default function App() {
               id="header-logo-upload" 
               className="hidden" 
               accept=".png,.jpg,.jpeg,.svg" 
-              onChange={handleLogoUpload} 
+              onChange={handleLogoUpload}
             />
             <label htmlFor="header-logo-upload" className="cursor-pointer group block">
               {config.branding.logoUrl ? (
@@ -316,7 +316,7 @@ export default function App() {
                   id="quote-logo-upload" 
                   className="hidden" 
                   accept=".png,.jpg,.jpeg,.svg" 
-                  onChange={handleLogoUpload} 
+                  onChange={handleLogoUpload}
                 />
                 <label htmlFor="quote-logo-upload" className="cursor-pointer block">
                   {config.branding.logoUrl ? (
@@ -336,7 +336,6 @@ export default function App() {
                   )}
                 </label>
               </div>
-              {/* Logo visible solo para impresión si ya existe */}
               {config.branding.logoUrl && (
                 <div className="hidden print:flex bg-white p-2 mb-4 items-center justify-center">
                   <img src={config.branding.logoUrl} alt="Logo Cotización" className="w-48 h-48 object-contain" />
@@ -471,19 +470,27 @@ export default function App() {
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
               <h2 className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-800 tracking-wider">Dimensiones</h2>
               <div className="relative">
-                <input type="number" value={config.m2} onChange={e => setConfig(p => ({ ...p, m2: Number(e.target.value), workDays: calculateWorkDays(Number(e.target.value)) }))}
-                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl focus:ring-2 focus:ring-[#005C69]/20 outline-none" />
+                <input 
+                  type="number" 
+                  value={config.m2} 
+                  onChange={e => setConfig(p => ({ ...p, m2: Number(e.target.value), workDays: calculateWorkDays(Number(e.target.value)) }))}
+                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl focus:ring-2 focus:ring-[#005C69]/20 outline-none" 
+                />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 font-black italic">M²</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {(['Impermeabilizante', 'Pintura'] as MaterialCategory[]).map(cat => (
-                  <button key={cat} onClick={() => setConfig(p => ({ ...p, selectedCategory: cat, selectedProductId: allProducts.find(x => x.category === cat)?.id || p.selectedProductId, extraBuckets: 0, extraSealerBuckets: 0 }))}
-                    className={`py-2 rounded-xl border-2 font-black text-[10px] transition-all ${config.selectedCategory === cat ? 'bg-[#005C69] border-[#005C69] text-white shadow-md' : 'bg-white text-slate-400 border-slate-100 hover:border-[#005C69]/30'}`}>{cat}</button>
+                  <button 
+                    key={cat} 
+                    onClick={() => setConfig(p => ({ ...p, selectedCategory: cat, selectedProductId: allProducts.find(x => x.category === cat)?.id || p.selectedProductId, extraBuckets: 0, extraSealerBuckets: 0 }))}
+                    className={`py-2 rounded-xl border-2 font-black text-[10px] transition-all ${config.selectedCategory === cat ? 'bg-[#005C69] border-[#005C69] text-white shadow-md' : 'bg-white text-slate-400 border-slate-100 hover:border-[#005C69]/30'}`}
+                  >
+                    {cat}
+                  </button>
                 ))}
               </div>
             </section>
 
-            {/* Módulo de Andamios */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-3">
               <h2 className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-800 tracking-wider">
                 <HardHat className="w-3 h-3 text-[#FF914D]" /> Renta de Andamio
@@ -535,8 +542,12 @@ export default function App() {
                 <Settings className="w-3 h-3 text-[#FF914D]" /> Mat. Auxiliar
               </h2>
               <div className="relative">
-                <input type="number" value={config.auxMaterialTotal} onChange={e => setConfig(p => ({ ...p, auxMaterialTotal: Number(e.target.value) }))}
-                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl outline-none" />
+                <input 
+                  type="number" 
+                  value={config.auxMaterialTotal} 
+                  onChange={e => setConfig(p => ({ ...p, auxMaterialTotal: Number(e.target.value) }))}
+                  className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xl outline-none" 
+                />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 font-bold">$</span>
               </div>
               <p className="text-[7px] font-black text-slate-400 uppercase leading-tight italic">Global (Brochas, cintas...)</p>
@@ -547,13 +558,21 @@ export default function App() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[8px] font-black text-slate-400 uppercase block mb-1">Trab.</label>
-                  <select value={config.numWorkers} onChange={e => setConfig(p => ({ ...p, numWorkers: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg font-bold text-xs outline-none">
+                  <select 
+                    value={config.numWorkers} 
+                    onChange={e => setConfig(p => ({ ...p, numWorkers: Number(e.target.value) }))} 
+                    className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg font-bold text-xs outline-none"
+                  >
                     {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-[8px] font-black text-slate-400 uppercase block mb-1">Días</label>
-                  <select value={config.workDays} onChange={e => setConfig(p => ({ ...p, workDays: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg font-bold text-xs outline-none">
+                  <select 
+                    value={config.workDays} 
+                    onChange={e => setConfig(p => ({ ...p, workDays: Number(e.target.value) }))} 
+                    className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg font-bold text-xs outline-none"
+                  >
                     {Array.from({length: 30}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
