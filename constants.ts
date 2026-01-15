@@ -26,9 +26,9 @@ export const INITIAL_CONFIG: ProjectConfig = {
   extraBuckets: 0, 
   extraSealerBuckets: 0, 
   branding: {
-    companyName: 'RENUEVA KOBA',
-    subName: 'KOBA S.A. DE C.V.',
-    logoUrl: null,
+    companyName: 'KOBA',
+    subName: 'RENUEVA TU HOGAR',
+    logoUrl: null, 
     adminNames: 'ING. MAURO / OMAR',
     adminRole: 'DIRECCIÓN TÉCNICA - RENUEVA',
     quoteTitle: 'PRESUPUESTO DE SERVICIO'
